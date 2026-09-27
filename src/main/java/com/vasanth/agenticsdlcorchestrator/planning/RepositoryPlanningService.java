@@ -1,5 +1,7 @@
 package com.vasanth.agenticsdlcorchestrator.planning;
 
+import com.vasanth.agenticsdlcorchestrator.planning.domain.PlanModels;
+import com.vasanth.agenticsdlcorchestrator.requirement.persistence.RequirementItemEntity;
 import com.vasanth.agenticsdlcorchestrator.agent.SpecialistAgentOrchestrator;
 import com.vasanth.agenticsdlcorchestrator.config.AgenticExecutionProperties;
 import com.vasanth.agenticsdlcorchestrator.config.RepositoryToolProperties;
@@ -18,7 +20,6 @@ import com.vasanth.agenticsdlcorchestrator.requirement.domain.RequirementAnalysi
 import com.vasanth.agenticsdlcorchestrator.requirement.domain.RequirementAnalysis.AmbiguityAnalysis;
 import com.vasanth.agenticsdlcorchestrator.requirement.domain.RequirementAnalysis.RiskLevel;
 import com.vasanth.agenticsdlcorchestrator.requirement.persistence.RequirementAnalysisRepository;
-import com.vasanth.agenticsdlcorchestrator.requirement.persistence.RequirementItemEntity;
 import com.vasanth.agenticsdlcorchestrator.requirement.persistence.RequirementItemEntity.ItemType;
 import com.vasanth.agenticsdlcorchestrator.requirement.persistence.RequirementItemRepository;
 import com.vasanth.agenticsdlcorchestrator.workflow.api.PlanningResponse;
@@ -37,6 +38,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import java.sql.Timestamp;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -53,6 +58,7 @@ public class RepositoryPlanningService {
     private final SourceMutationGuard mutationGuard;
     private final SpecialistAgentOrchestrator agentOrchestrator;
     private final ObjectMapper objectMapper;
+    private final JdbcTemplate jdbc;
 
     public RepositoryPlanningService(RepositoryToolProperties repositoryProperties,
                                      AgenticExecutionProperties executionProperties,
@@ -61,7 +67,7 @@ public class RepositoryPlanningService {
                                      RepositoryAnalysisRepository repositoryAnalyses,
                                      EngineeringPlanRepository plans, SourceMutationGuard mutationGuard,
                                      SpecialistAgentOrchestrator agentOrchestrator,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper, JdbcTemplate jdbc) {
         this.repositoryProperties = repositoryProperties;
         this.executionProperties = executionProperties;
         this.workflows = workflows;
@@ -73,6 +79,7 @@ public class RepositoryPlanningService {
         this.mutationGuard = mutationGuard;
         this.agentOrchestrator = agentOrchestrator;
         this.objectMapper = objectMapper;
+        this.jdbc = jdbc;
     }
 
     @Transactional
@@ -108,6 +115,7 @@ public class RepositoryPlanningService {
                     analysisHash, now));
             plans.save(new EngineeringPlanEntity(UUID.randomUUID(), revision.getId(), revision.getRequirementHash(),
                     analysisHash, planJson, planHash, now));
+            persistPlanGraph(revision.getId(), plan, now);
             var invocations = agentOrchestrator.execute(workflowId, revision.getId(), requirement, repositoryMap,
                     plan, revision.getRequirementHash(), analysisHash, planHash);
             workflow.transition(WorkflowStatus.AWAITING_CHANGE_APPROVAL, now);
@@ -124,6 +132,23 @@ public class RepositoryPlanningService {
                 exception.addSuppressed(cleanupFailure);
             }
             throw exception;
+        }
+    }
+
+    private void persistPlanGraph(UUID revisionId,
+                                  PlanModels.EngineeringTaskPlan plan,
+                                  Instant now) {
+        Map<String, UUID> ids = new LinkedHashMap<>();
+        for (var task : plan.tasks()) {
+            UUID id = UUID.randomUUID();
+            ids.put(task.id(), id);
+            jdbc.update("insert into agent_tasks(id, revision_id, task_key, agent_role, state, attempt_count, created_at, updated_at) "
+                            + "values (?, ?, ?, ?, 'PENDING', 0, ?, ?)", id, revisionId, "plan-" + task.id(),
+                    task.agentRole(), Timestamp.from(now), Timestamp.from(now));
+        }
+        for (var task : plan.tasks()) for (String dependency : task.dependencies()) {
+            jdbc.update("insert into task_dependencies(task_id, depends_on_task_id) values (?, ?)",
+                    ids.get(task.id()), ids.get(dependency));
         }
     }
 

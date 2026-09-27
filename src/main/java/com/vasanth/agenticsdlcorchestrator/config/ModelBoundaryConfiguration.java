@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
+import com.vasanth.agenticsdlcorchestrator.observability.PlatformMetrics;
 
 @Configuration
 public class ModelBoundaryConfiguration {
@@ -28,8 +29,8 @@ public class ModelBoundaryConfiguration {
 
     @Bean
     BoundedModelGateway boundedModelGateway(ModelProvider provider, ModelProviderProperties properties,
-                                            ObjectMapper objectMapper) {
-        return new BoundedModelGateway(provider, properties, objectMapper);
+                                            ObjectMapper objectMapper, PlatformMetrics metrics) {
+        return new BoundedModelGateway(provider, properties, objectMapper, metrics);
     }
 
     @Bean

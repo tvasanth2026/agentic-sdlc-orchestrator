@@ -1,0 +1,17 @@
+name: verify
+on:
+  push:
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: maven }
+      - run: chmod +x mvnw scenario-repositories/greenfield-seed/mvnw scenario-repositories/url-shortener/mvnw
+      - run: ./mvnw clean
+      - uses: actions/upload-artifact@v4
+        with: { name: verification-evidence, path: 'target/site/jacoco/**' }
+      - run: docker compose config --quiet
+      - run: docker build -t agentic-sdlc-orchestrator:${{ github.sha }} .

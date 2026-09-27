@@ -18,6 +18,7 @@ import com.vasanth.agenticsdlcorchestrator.workflow.api.ApplyChangesResponse;
 import com.vasanth.agenticsdlcorchestrator.workflow.domain.WorkflowStatus;
 import com.vasanth.agenticsdlcorchestrator.workflow.persistence.WorkflowRepository;
 import com.vasanth.agenticsdlcorchestrator.workflow.persistence.WorkflowRevisionRepository;
+import com.vasanth.agenticsdlcorchestrator.governance.GovernanceService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -50,6 +51,7 @@ public class PatchApplicationService {
     private final PatchPolicyProperties patchProperties;
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
+    private final GovernanceService governance;
 
     public PatchApplicationService(WorkflowRepository workflows, WorkflowRevisionRepository revisions,
                                    EngineeringPlanRepository plans, RepositoryAnalysisRepository repositoryAnalyses,
@@ -59,7 +61,7 @@ public class PatchApplicationService {
                                    AgenticExecutionProperties executionProperties,
                                    RepositoryToolProperties repositoryProperties,
                                    PatchPolicyProperties patchProperties, JdbcTemplate jdbc,
-                                   ObjectMapper objectMapper) {
+                                   ObjectMapper objectMapper, GovernanceService governance) {
         this.workflows = workflows;
         this.revisions = revisions;
         this.plans = plans;
@@ -72,6 +74,7 @@ public class PatchApplicationService {
         this.patchProperties = patchProperties;
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.governance = governance;
     }
 
     @Transactional
@@ -87,6 +90,8 @@ public class PatchApplicationService {
         if (!plan.getPlanHash().equals(request.planHash())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "plan hash is stale or incorrect");
         }
+        governance.requireCurrentChangeApproval(revision.getId(), plan.getPlanHash());
+        governance.recordPatchPolicies(revision.getId());
         var repositoryAnalysis = repositoryAnalyses.findByRevisionId(revision.getId()).orElseThrow();
         var requirementAnalysis = requirementAnalyses.findByRevisionId(revision.getId()).orElseThrow();
         List<String> criteria = requirementItems.findByAnalysisIdOrderByItemTypeAscItemKeyAsc(requirementAnalysis.getId())
@@ -94,7 +99,7 @@ public class PatchApplicationService {
                 .map(item -> item.getItemKey()).toList();
         ProposalContext context = new ProposalContext("REV-" + revision.getRevisionNumber(),
                 requirementAnalysis.getNormalizedProblem(), criteria, plan.getRequirementHash(),
-                plan.getRepositoryAnalysisHash(), plan.getPlanHash());
+                plan.getRepositoryAnalysisHash(), plan.getPlanHash(), repositoryAnalysis.getWorkspaceLocation());
         List<AgentPatchProposal> proposals = proposalAgent.propose(context);
         Path repository = Path.of(repositoryAnalysis.getWorkspaceLocation());
         Path baseline = repository.getParent().resolve("snapshots").resolve("baseline");
@@ -117,6 +122,7 @@ public class PatchApplicationService {
                 finalResult = result;
             }
             if (finalResult == null) throw new PatchPolicyException("proposal agent returned no proposals");
+            governance.patchApplied(revision.getId());
             Instant now = Instant.now();
             workflow.transition(WorkflowStatus.EXECUTING, now);
             revision.transition(WorkflowStatus.EXECUTING);
@@ -130,6 +136,23 @@ public class PatchApplicationService {
             catch (RuntimeException rollbackFailure) { exception.addSuppressed(rollbackFailure); }
             throw exception;
         }
+    }
+
+    public UUID applyRepairProposal(UUID revisionId, AgentPatchProposal proposal) {
+        if (!"REPAIR".equals(proposal.agentRole())) throw new PatchPolicyException("repair proposal must use REPAIR role");
+        var repositoryAnalysis = repositoryAnalyses.findByRevisionId(revisionId).orElseThrow();
+        Path repository = Path.of(repositoryAnalysis.getWorkspaceLocation());
+        Path baseline = repository.getParent().resolve("snapshots").resolve("baseline");
+        RepositoryWorkspaceService workspaces = new RepositoryWorkspaceService(
+                executionProperties.workspaceRoot(), repositoryProperties);
+        GovernedPatchApplier applier = new GovernedPatchApplier(repository, baseline, workspaces,
+                repositoryProperties, patchProperties);
+        String proposalJson = serialize(proposal);
+        String proposalHash = sha256(proposalJson);
+        PatchApplicationResult result = applier.apply(proposal, proposalHash,
+                repositoryAnalysis.getBaselineManifestHash());
+        persist(revisionId, proposal, proposalJson, result, repositoryAnalysis.getBaselineManifestHash());
+        return proposal.id();
     }
 
     private void persist(UUID revisionId, AgentPatchProposal proposal, String json,

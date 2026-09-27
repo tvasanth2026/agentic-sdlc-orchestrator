@@ -3,6 +3,12 @@ package com.vasanth.agenticsdlcorchestrator.workflow.api;
 import com.vasanth.agenticsdlcorchestrator.requirement.application.ClarificationService;
 import com.vasanth.agenticsdlcorchestrator.planning.RepositoryPlanningService;
 import com.vasanth.agenticsdlcorchestrator.patch.PatchApplicationService;
+import com.vasanth.agenticsdlcorchestrator.validation.BuildModels.ValidationOutcome;
+import com.vasanth.agenticsdlcorchestrator.validation.WorkflowValidationService;
+import com.vasanth.agenticsdlcorchestrator.governance.GovernanceService;
+import com.vasanth.agenticsdlcorchestrator.governance.GovernanceRequests.ApprovalRequest;
+import com.vasanth.agenticsdlcorchestrator.governance.GovernanceRequests.ApprovalResponse;
+import com.vasanth.agenticsdlcorchestrator.governance.GovernanceRequests.OutcomeResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -23,15 +29,20 @@ class WorkflowController {
     private final ClarificationService clarificationService;
     private final RepositoryPlanningService planningService;
     private final PatchApplicationService patchApplicationService;
+    private final WorkflowValidationService validationService;
+    private final GovernanceService governanceService;
 
     WorkflowController(WorkflowSubmissionService service, WorkflowQueryService queryService,
                        ClarificationService clarificationService, RepositoryPlanningService planningService,
-                       PatchApplicationService patchApplicationService) {
+                       PatchApplicationService patchApplicationService,
+                       WorkflowValidationService validationService, GovernanceService governanceService) {
         this.service = service;
         this.queryService = queryService;
         this.clarificationService = clarificationService;
         this.planningService = planningService;
         this.patchApplicationService = patchApplicationService;
+        this.validationService = validationService;
+        this.governanceService = governanceService;
     }
 
     @PostMapping
@@ -65,5 +76,37 @@ class WorkflowController {
     ApplyChangesResponse applyChanges(@PathVariable UUID workflowId,
                                       @Valid @RequestBody ApplyChangesRequest request) {
         return patchApplicationService.generateAndApply(workflowId, request);
+    }
+
+    @PostMapping("/{workflowId}/validate")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    ValidationOutcome validate(@PathVariable UUID workflowId) {
+        return validationService.validate(workflowId);
+    }
+
+    @PostMapping("/{workflowId}/approvals/change")
+    ApprovalResponse approveChange(@PathVariable UUID workflowId, @Valid @RequestBody ApprovalRequest request,
+                                   @RequestHeader("X-Change-Approver-Token") String token,
+                                   @RequestHeader("X-Approver-Id") String approver) {
+        return governanceService.approveChange(workflowId, request.evidenceHash(), token, approver);
+    }
+
+    @PostMapping("/{workflowId}/outcome")
+    OutcomeResponse outcome(@PathVariable UUID workflowId) {
+        return governanceService.generateOutcome(workflowId);
+    }
+
+    @PostMapping("/{workflowId}/approvals/release")
+    ApprovalResponse approveRelease(@PathVariable UUID workflowId, @Valid @RequestBody ApprovalRequest request,
+                                    @RequestHeader("X-Release-Approver-Token") String token,
+                                    @RequestHeader("X-Approver-Id") String approver) {
+        return governanceService.approveRelease(workflowId, request.evidenceHash(), token, approver);
+    }
+
+    @PostMapping("/{workflowId}/cancel")
+    ApprovalResponse cancel(@PathVariable UUID workflowId,
+                            @RequestHeader("X-Operator-Token") String token,
+                            @RequestHeader("X-Operator-Id") String operator) {
+        return governanceService.cancel(workflowId, token, operator);
     }
 }

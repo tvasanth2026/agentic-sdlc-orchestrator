@@ -49,6 +49,14 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
             <scope>runtime</scope>
@@ -114,6 +122,16 @@
                         <id>report</id>
                         <phase>verify</phase>
                         <goals><goal>report</goal></goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals><goal>check</goal></goals>
+                        <configuration>
+                            <rules><rule><element>BUNDLE</element><limits><limit>
+                                <counter>INSTRUCTION</counter><value>COVEREDRATIO</value><minimum>0.70</minimum>
+                            </limit></limits></rule></rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

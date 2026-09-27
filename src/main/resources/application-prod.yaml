@@ -1,0 +1,10 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI}
+
+server:
+  ssl:
+    enabled: ${SERVER_SSL_ENABLED:true}

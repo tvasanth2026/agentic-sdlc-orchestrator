@@ -15,18 +15,21 @@ import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.vasanth.agenticsdlcorchestrator.observability.PlatformMetrics;
 
 @Service
 class WorkflowSubmissionService {
     private final WorkflowRepository workflows;
     private final WorkflowRevisionRepository revisions;
     private final ApplicationEventPublisher events;
+    private final PlatformMetrics metrics;
 
     WorkflowSubmissionService(WorkflowRepository workflows, WorkflowRevisionRepository revisions,
-                              ApplicationEventPublisher events) {
+                              ApplicationEventPublisher events, PlatformMetrics metrics) {
         this.workflows = workflows;
         this.revisions = revisions;
         this.events = events;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -39,6 +42,7 @@ class WorkflowSubmissionService {
         revisions.save(new WorkflowRevisionEntity(revisionId, workflowId, 1, null, requirementHash, now));
         events.publishEvent(new RequirementSubmittedEvent(workflowId, revisionId,
                 request.requirement(), request.repositoryPath()));
+        metrics.submission();
         return new WorkflowSubmissionResponse(workflowId, revisionId, 1, WorkflowStatus.RECEIVED,
                 requirementHash);
     }

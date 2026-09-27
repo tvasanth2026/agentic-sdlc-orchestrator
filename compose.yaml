@@ -4,9 +4,7 @@ services:
     environment:
       POSTGRES_DB: agentic_sdlc_orchestrator
       POSTGRES_USER: agentic
-      POSTGRES_PASSWORD: local-agentic-password
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-local-agentic-password}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agentic -d agentic_sdlc_orchestrator"]
       interval: 5s
@@ -15,6 +13,50 @@ services:
     volumes:
       - agentic-postgres:/var/lib/postgresql/data
 
+  orchestrator-1:
+    build: .
+    environment: &orchestrator-environment
+      DB_URL: jdbc:postgresql://postgres:5432/agentic_sdlc_orchestrator
+      DB_USERNAME: agentic
+      DB_PASSWORD: ${DB_PASSWORD:-local-agentic-password}
+      AGENTIC_BASIC_USERNAME: ${AGENTIC_BASIC_USERNAME:-operator}
+      AGENTIC_BASIC_PASSWORD: ${AGENTIC_BASIC_PASSWORD:-local-development-only}
+      AGENTIC_OPERATOR_TOKEN: ${AGENTIC_OPERATOR_TOKEN:-local-operator-token}
+      AGENTIC_CHANGE_APPROVER_TOKEN: ${AGENTIC_CHANGE_APPROVER_TOKEN:-local-change-approver-token}
+      AGENTIC_RELEASE_APPROVER_TOKEN: ${AGENTIC_RELEASE_APPROVER_TOKEN:-local-release-approver-token}
+      AGENTIC_REPOSITORY_ROOT: /app/scenarios
+      AGENTIC_WORKSPACE_ROOT: /app/workspaces
+      AGENTIC_WORKER_ID: orchestrator-1
+    volumes:
+      - ./scenario-repositories:/app/scenarios:ro
+      - agentic-workspaces:/app/workspaces
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  orchestrator-2:
+    build: .
+    environment:
+      <<: *orchestrator-environment
+      AGENTIC_WORKER_ID: orchestrator-2
+      SERVER_PORT: 8081
+    volumes:
+      - ./scenario-repositories:/app/scenarios:ro
+      - agentic-workspaces:/app/workspaces
+    ports: ["8081:8081"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
 volumes:
   agentic-postgres:
-
+  agentic-workspaces:

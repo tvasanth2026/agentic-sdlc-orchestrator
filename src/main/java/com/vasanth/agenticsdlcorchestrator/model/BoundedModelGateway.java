@@ -13,6 +13,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
+import com.vasanth.agenticsdlcorchestrator.observability.PlatformMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 public final class BoundedModelGateway {
     private final ModelProvider provider;
@@ -20,11 +22,18 @@ public final class BoundedModelGateway {
     private final ObjectMapper objectMapper;
     private final SecretRedactor redactor = new SecretRedactor();
     private final SpecialistOutputValidator validator = new SpecialistOutputValidator();
+    private final PlatformMetrics metrics;
 
     public BoundedModelGateway(ModelProvider provider, ModelProviderProperties properties, ObjectMapper objectMapper) {
+        this(provider, properties, objectMapper, new PlatformMetrics(new SimpleMeterRegistry()));
+    }
+
+    public BoundedModelGateway(ModelProvider provider, ModelProviderProperties properties, ObjectMapper objectMapper,
+                               PlatformMetrics metrics) {
         this.provider = provider;
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.metrics = metrics;
     }
 
     public ValidatedModelOutput generate(ModelRequest request) {
@@ -50,10 +59,13 @@ public final class BoundedModelGateway {
     }
 
     private ModelResponse invokeWithTimeout(ModelRequest request) {
+        var sample = metrics.modelStarted();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             Future<ModelResponse> future = executor.submit(() -> provider.generate(request));
             try {
-                return future.get(properties.timeout().toMillis(), TimeUnit.MILLISECONDS);
+                ModelResponse response = future.get(properties.timeout().toMillis(), TimeUnit.MILLISECONDS);
+                metrics.modelFinished(sample, response.provider(), "success");
+                return response;
             } catch (TimeoutException exception) {
                 future.cancel(true);
                 throw new ModelBoundaryException("model call timed out", exception);
@@ -63,6 +75,9 @@ public final class BoundedModelGateway {
             } catch (ExecutionException exception) {
                 throw new ModelBoundaryException("model provider failed", exception.getCause());
             }
+        } catch (RuntimeException exception) {
+            metrics.modelFinished(sample, properties.provider(), "failure");
+            throw exception;
         }
     }
 

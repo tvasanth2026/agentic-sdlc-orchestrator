@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:configtree:${CONFIG_TREE:/run/secrets/}
   application:
     name: agentic-sdlc-orchestrator
   datasource:
@@ -18,6 +20,11 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
+  forward-headers-strategy: framework
+  ssl:
+    enabled: ${SERVER_SSL_ENABLED:false}
+    certificate: ${SERVER_SSL_CERTIFICATE:}
+    certificate-private-key: ${SERVER_SSL_PRIVATE_KEY:}
 
 management:
   endpoints:
@@ -63,3 +70,19 @@ agentic:
       - src/main
       - src/test
       - docs
+  validation:
+    timeout: ${AGENTIC_VALIDATION_TIMEOUT:PT5M}
+    max-output-characters: ${AGENTIC_VALIDATION_MAX_OUTPUT_CHARS:65536}
+    retry-backoff: ${AGENTIC_VALIDATION_RETRY_BACKOFF:PT0.1S}
+  governance:
+    operator-token: ${AGENTIC_OPERATOR_TOKEN:local-operator-token}
+    change-approver-token: ${AGENTIC_CHANGE_APPROVER_TOKEN:local-change-approver-token}
+    release-approver-token: ${AGENTIC_RELEASE_APPROVER_TOKEN:local-release-approver-token}
+  security:
+    local:
+      username: ${AGENTIC_BASIC_USERNAME:operator}
+      password: ${AGENTIC_BASIC_PASSWORD:local-development-only}
+  coordination:
+    worker-id: ${AGENTIC_WORKER_ID:${HOSTNAME:local-worker}}
+    lease-duration: ${AGENTIC_LEASE_DURATION:PT30S}
+    recovery-interval: ${AGENTIC_RECOVERY_INTERVAL:PT10S}
