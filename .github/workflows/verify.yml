@@ -10,7 +10,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21', cache: maven }
       - run: chmod +x mvnw scenario-repositories/greenfield-seed/mvnw scenario-repositories/url-shortener/mvnw
-      - run: ./mvnw clean
+      - run: ./mvnw clean verify
       - uses: actions/upload-artifact@v4
         with: { name: verification-evidence, path: 'target/site/jacoco/**' }
       - run: docker compose config --quiet
