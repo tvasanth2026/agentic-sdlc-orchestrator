@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "specialist-output.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "decisions", "assumptions", "risks", "deliverables", "ready"],
+  "properties": {
+    "summary": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "decisions": {"type": "array", "maxItems": 50, "items": {"type": "string", "minLength": 1}},
+    "assumptions": {"type": "array", "maxItems": 50, "items": {"type": "string", "minLength": 1}},
+    "risks": {"type": "array", "maxItems": 50, "items": {"type": "string", "minLength": 1}},
+    "deliverables": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1}},
+    "ready": {"type": "boolean"}
+  }
+}

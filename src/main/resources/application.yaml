@@ -2,7 +2,7 @@ spring:
   application:
     name: agentic-sdlc-orchestrator
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/agentic_url_shortner}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/agentic_sdlc_orchestrator}
     username: ${DB_USERNAME:agentic}
     password: ${DB_PASSWORD:local-agentic-password}
   jpa:
@@ -40,4 +40,26 @@ agentic:
     deterministic: ${AGENTIC_DETERMINISTIC:true}
     max-attempts: ${AGENTIC_MAX_ATTEMPTS:3}
     workspace-root: ${AGENTIC_WORKSPACE_ROOT:./agent-workspaces}
-
+    clarification-token: ${AGENTIC_CLARIFICATION_TOKEN:local-operator-token}
+  repository:
+    approved-roots:
+      - ${AGENTIC_REPOSITORY_ROOT:./scenario-repositories}
+    max-files: ${AGENTIC_REPOSITORY_MAX_FILES:2000}
+    max-file-bytes: ${AGENTIC_REPOSITORY_MAX_FILE_BYTES:1048576}
+    max-total-bytes: ${AGENTIC_REPOSITORY_MAX_TOTAL_BYTES:52428800}
+    max-search-matches: ${AGENTIC_REPOSITORY_MAX_SEARCH_MATCHES:500}
+  model:
+    provider: ${AGENTIC_MODEL_PROVIDER:deterministic}
+    model: ${AGENTIC_MODEL_NAME:deterministic-v1}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1/responses}
+    api-key: ${OPENAI_API_KEY:}
+    timeout: ${AGENTIC_MODEL_TIMEOUT:PT20S}
+    max-context-characters: ${AGENTIC_MODEL_MAX_CONTEXT_CHARS:60000}
+    max-output-characters: ${AGENTIC_MODEL_MAX_OUTPUT_CHARS:16000}
+  patch:
+    max-operations: ${AGENTIC_PATCH_MAX_OPERATIONS:100}
+    max-patch-bytes: ${AGENTIC_PATCH_MAX_BYTES:2097152}
+    permitted-roots:
+      - src/main
+      - src/test
+      - docs

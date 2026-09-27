@@ -9,3 +9,9 @@ spring:
   flyway:
     enabled: true
 
+agentic:
+  execution:
+    workspace-root: ./target/test-workspaces
+  repository:
+    approved-roots:
+      - ./target/test-repositories

@@ -1,0 +1,16 @@
+package com.vasanth.agenticsdlcorchestrator.agent;
+
+public enum SpecialistAgentRole {
+    REQUIREMENT_INTERPRETATION,
+    AMBIGUITY_ANALYSIS,
+    REPOSITORY_ANALYSIS,
+    TASK_PLANNING,
+    ARCHITECTURE,
+    IMPLEMENTATION,
+    TEST_GENERATION,
+    VALIDATION_DIAGNOSIS,
+    REPAIR,
+    DOCUMENTATION,
+    SECURITY_RISK_REVIEW,
+    RELEASE_READINESS
+}
